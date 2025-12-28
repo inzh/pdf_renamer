@@ -1,0 +1,1371 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图纸重命名工具</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --bg-primary: #0f1419;
+            --bg-secondary: #1a1f2e;
+            --bg-tertiary: #242b3d;
+            --bg-hover: #2d3548;
+            --accent-primary: #3b82f6;
+            --accent-secondary: #60a5fa;
+            --accent-glow: rgba(59, 130, 246, 0.3);
+            --text-primary: #e8eaed;
+            --text-secondary: #9aa0a6;
+            --text-muted: #5f6368;
+            --border-color: #3d4452;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --gradient-1: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --gradient-2: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+        }
+        
+        body {
+            font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Header */
+        .header {
+            background: var(--bg-secondary);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            border-bottom: 1px solid var(--border-color);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        .header-title {
+            font-size: 18px;
+            font-weight: 600;
+            background: var(--gradient-2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .header-actions {
+            display: flex;
+            gap: 8px;
+            margin-left: auto;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            font-family: inherit;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .btn-primary {
+            background: var(--gradient-2);
+            color: white;
+            box-shadow: 0 2px 8px var(--accent-glow);
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px var(--accent-glow);
+        }
+        
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+        
+        .btn-secondary:hover {
+            background: var(--bg-hover);
+            border-color: var(--accent-primary);
+        }
+        
+        .btn-icon {
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+        }
+        
+        /* Main Layout */
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        /* Left Panel - Image Viewer */
+        .image-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-primary);
+            position: relative;
+        }
+        
+        .image-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: 
+                radial-gradient(circle at 20% 80%, rgba(59, 130, 246, 0.05) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.05) 0%, transparent 50%),
+                repeating-linear-gradient(
+                    45deg,
+                    transparent,
+                    transparent 20px,
+                    rgba(255, 255, 255, 0.01) 20px,
+                    rgba(255, 255, 255, 0.01) 40px
+                );
+        }
+        
+        .image-wrapper {
+            position: absolute;
+            cursor: grab;
+            user-select: none;
+            transition: transform 0.1s ease;
+        }
+        
+        .image-wrapper:active {
+            cursor: grabbing;
+        }
+        
+        .image-wrapper img {
+            max-width: none;
+            display: block;
+            pointer-events: none;
+        }
+        
+        .placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            color: var(--text-muted);
+        }
+        
+        .placeholder-icon {
+            width: 80px;
+            height: 80px;
+            opacity: 0.3;
+        }
+        
+        .placeholder-text {
+            font-size: 16px;
+        }
+        
+        /* Selection overlay */
+        .selection-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            cursor: crosshair;
+            z-index: 100;
+        }
+        
+        .selection-overlay.active {
+            display: block;
+        }
+        
+        .selection-box {
+            position: absolute;
+            border: 2px dashed var(--accent-primary);
+            background: rgba(59, 130, 246, 0.15);
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4);
+            pointer-events: none;
+            display: none;
+        }
+        
+        /* Image info bar */
+        .image-info {
+            padding: 8px 16px;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        
+        .image-info-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .zoom-indicator {
+            background: var(--bg-tertiary);
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        
+        /* Bottom actions */
+        .image-actions {
+            padding: 12px 16px;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: center;
+        }
+        
+        .btn-focus-corner {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            padding: 10px 20px;
+        }
+        
+        .btn-focus-corner:hover {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+        }
+        
+        /* Right Panel - Controls */
+        .control-panel {
+            width: 320px;
+            background: var(--bg-secondary);
+            border-left: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+        
+        .panel-section {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .section-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 16px;
+        }
+        
+        /* Navigation controls */
+        .nav-controls {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+        }
+        
+        .nav-btn {
+            flex: 1;
+            padding: 12px;
+            max-width: 120px;
+        }
+        
+        /* Page indicator */
+        .page-indicator {
+            text-align: center;
+            padding: 12px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            margin-top: 12px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+        
+        .page-indicator .current {
+            color: var(--accent-secondary);
+            font-weight: 600;
+        }
+        
+        .page-input {
+            width: 50px;
+            padding: 4px 8px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            color: var(--accent-secondary);
+            font-size: 14px;
+            font-weight: 600;
+            text-align: center;
+            font-family: inherit;
+        }
+        
+        .page-input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+        }
+        
+        .page-input::-webkit-inner-spin-button,
+        .page-input::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        
+        .btn-goto {
+            margin-left: 8px;
+            padding: 4px 10px;
+            background: var(--accent-primary);
+            border: none;
+            border-radius: 4px;
+            color: white;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .btn-goto:hover {
+            background: var(--accent-secondary);
+        }
+        
+        /* Rotation controls */
+        .rotation-controls {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .rotation-btn {
+            flex: 1;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .rotation-btn svg {
+            width: 24px;
+            height: 24px;
+        }
+        
+        .rotation-btn span {
+            font-size: 11px;
+        }
+        
+        /* OCR Section */
+        .ocr-controls {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .ocr-btn {
+            flex: 1;
+            padding: 14px;
+            font-size: 14px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .ocr-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, transparent 0%, rgba(255,255,255,0.1) 100%);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .ocr-btn:hover::before {
+            opacity: 1;
+        }
+        
+        .ocr-btn.active {
+            background: var(--accent-primary) !important;
+            border-color: var(--accent-primary) !important;
+        }
+        
+        /* Input fields */
+        .input-group {
+            margin-bottom: 16px;
+        }
+        
+        .input-group:last-child {
+            margin-bottom: 0;
+        }
+        
+        .input-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+        
+        .input-field {
+            width: 100%;
+            padding: 12px 14px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+        
+        .input-field:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+        
+        .input-field::placeholder {
+            color: var(--text-muted);
+        }
+        
+        /* Save section */
+        .save-path-display {
+            padding: 10px 14px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+            word-break: break-all;
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .save-path-display.empty {
+            color: var(--text-muted);
+            font-style: italic;
+        }
+        
+        .save-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .btn-save {
+            padding: 14px;
+            font-size: 15px;
+            font-weight: 600;
+        }
+        
+        .btn-rename {
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            color: white;
+        }
+        
+        .btn-rename:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(34, 197, 94, 0.3);
+        }
+        
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            padding: 14px 24px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            z-index: 1000;
+            opacity: 0;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+        
+        .toast.success {
+            border-color: var(--success);
+        }
+        
+        .toast.error {
+            border-color: var(--error);
+        }
+        
+        .toast-icon {
+            width: 20px;
+            height: 20px;
+        }
+        
+        .toast-icon.success {
+            color: var(--success);
+        }
+        
+        .toast-icon.error {
+            color: var(--error);
+        }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--bg-hover);
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <h1 class="header-title">📷 图纸重命名工具</h1>
+        <div class="header-actions">
+            <button class="btn btn-secondary" onclick="clearFolderHistory()" style="margin-right: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+                清空历史
+            </button>
+            <button class="btn btn-secondary" onclick="openFile()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                </svg>
+                打开图片
+            </button>
+            <button class="btn btn-secondary" onclick="openFolder()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                </svg>
+                打开文件夹
+            </button>
+        </div>
+    </header>
+    
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Left Panel - Image Viewer -->
+        <div class="image-panel">
+            <div class="image-container" id="imageContainer">
+                <div class="placeholder" id="placeholder">
+                    <svg class="placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                        <circle cx="8.5" cy="8.5" r="1.5"/>
+                        <polyline points="21 15 16 10 5 21"/>
+                    </svg>
+                    <p class="placeholder-text">点击上方按钮打开图片或文件夹</p>
+                </div>
+                <div class="image-wrapper" id="imageWrapper" style="display: none;">
+                    <img id="mainImage" src="" alt="图片">
+                </div>
+                
+                <!-- Selection overlay -->
+                <div class="selection-overlay" id="selectionOverlay">
+                    <div class="selection-box" id="selectionBox"></div>
+                </div>
+            </div>
+            
+            <div class="image-info" id="imageInfo" style="display: none;">
+                <div class="image-info-item">
+                    <span>文件:</span>
+                    <strong id="infoFilename">-</strong>
+                </div>
+                <div class="image-info-item">
+                    <span>尺寸:</span>
+                    <strong id="infoSize">-</strong>
+                </div>
+                <div class="image-info-item zoom-indicator" id="zoomIndicator">100%</div>
+            </div>
+            
+            <div class="image-actions" id="imageActions" style="display: none;">
+                <button class="btn btn-focus-corner" onclick="showFullImage()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2"/>
+                        <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    展示全图
+                </button>
+                <button class="btn btn-focus-corner" onclick="zoomToBottomRight()" style="margin-left: 8px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="15 3 21 3 21 9"/>
+                        <polyline points="9 21 3 21 3 15"/>
+                        <line x1="21" y1="3" x2="14" y2="10"/>
+                        <line x1="3" y1="21" x2="10" y2="14"/>
+                    </svg>
+                    放大右下角
+                </button>
+            </div>
+        </div>
+        
+        <!-- Right Panel - Controls -->
+        <div class="control-panel">
+            <!-- Navigation -->
+            <div class="panel-section">
+                <h3 class="section-title">图片导航</h3>
+                <div class="nav-controls">
+                    <button class="btn btn-secondary nav-btn" onclick="prevImage()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="15 18 9 12 15 6"/>
+                        </svg>
+                        上一张
+                    </button>
+                    <button class="btn btn-secondary nav-btn" onclick="nextImage()">
+                        下一张
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="9 18 15 12 9 6"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="page-indicator" id="pageIndicator">
+                    <input type="number" id="pageInput" class="page-input" value="0" min="1" onkeypress="handlePageInput(event)"> / <span id="totalPages">0</span>
+                    <button class="btn-goto" onclick="gotoPage()">跳转</button>
+                </div>
+            </div>
+            
+            <!-- Rotation -->
+            <div class="panel-section">
+                <h3 class="section-title">旋转图片</h3>
+                <div class="rotation-controls">
+                    <button class="btn btn-secondary rotation-btn" onclick="rotateLeft()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M2.5 2v6h6M2.66 15.57a10 10 0 1 0 .57-8.38"/>
+                        </svg>
+                        <span>左旋转</span>
+                    </button>
+                    <button class="btn btn-secondary rotation-btn" onclick="rotateRight()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38"/>
+                        </svg>
+                        <span>右旋转</span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- OCR Selection -->
+            <div class="panel-section">
+                <h3 class="section-title">OCR 识别</h3>
+                <div class="ocr-controls">
+                    <button class="btn btn-primary ocr-btn" id="btnImageName" onclick="startSelection('name')">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2"/>
+                            <path d="M7 7h10M7 12h10M7 17h6"/>
+                        </svg>
+                        图名
+                    </button>
+                    <button class="btn btn-primary ocr-btn" id="btnImageNumber" onclick="startSelection('number')">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2"/>
+                            <path d="M9 7v10M15 7v10"/>
+                        </svg>
+                        图号
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Input Fields -->
+            <div class="panel-section">
+                <h3 class="section-title">识别结果</h3>
+                <div class="input-group">
+                    <label class="input-label" for="inputImageName">图名</label>
+                    <input type="text" class="input-field" id="inputImageName" placeholder="点击上方"图名"按钮识别...">
+                </div>
+                <div class="input-group">
+                    <label class="input-label" for="inputImageNumber">图号</label>
+                    <input type="text" class="input-field" id="inputImageNumber" placeholder="点击上方"图号"按钮识别...">
+                </div>
+            </div>
+            
+            <!-- Save Section -->
+            <div class="panel-section">
+                <h3 class="section-title">保存设置</h3>
+                <div class="save-path-display empty" id="savePathDisplay">未设置保存路径</div>
+                <div class="save-actions">
+                    <button class="btn btn-secondary btn-save" onclick="setSavePath()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                        </svg>
+                        设置保存路径
+                    </button>
+                    <button class="btn btn-rename btn-save" onclick="renameAndSave()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                            <polyline points="17 21 17 13 7 13 7 21"/>
+                            <polyline points="7 3 7 8 15 8"/>
+                        </svg>
+                        重命名并保存
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast notification -->
+    <div class="toast" id="toast">
+        <svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+            <polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+        <span id="toastMessage"></span>
+    </div>
+    
+    <script>
+        // 状态变量
+        let currentZoom = 1;
+        let panX = 0;
+        let panY = 0;
+        let isDragging = false;
+        let dragStartX = 0;
+        let dragStartY = 0;
+        let initialPanX = 0;
+        let initialPanY = 0;
+        let isSelecting = false;
+        let selectionMode = null; // 'name' or 'number'
+        let selectionStartX = 0;
+        let selectionStartY = 0;
+        let hasImage = false;
+        let imageNaturalWidth = 0;
+        let imageNaturalHeight = 0;
+        
+        // DOM 元素
+        const imageContainer = document.getElementById('imageContainer');
+        const imageWrapper = document.getElementById('imageWrapper');
+        const mainImage = document.getElementById('mainImage');
+        const placeholder = document.getElementById('placeholder');
+        const selectionOverlay = document.getElementById('selectionOverlay');
+        const selectionBox = document.getElementById('selectionBox');
+        const zoomIndicator = document.getElementById('zoomIndicator');
+        const imageInfo = document.getElementById('imageInfo');
+        const imageActions = document.getElementById('imageActions');
+        const pageIndicator = document.getElementById('pageIndicator');
+        const toast = document.getElementById('toast');
+        const toastMessage = document.getElementById('toastMessage');
+        
+        // API 状态
+        let apiReady = false;
+        
+        // 存储每张图片的图名和图号（以文件名为键）
+        let imageDataStore = {};  // { filename: { name: '', number: '' } }
+        let currentFolderPath = '';  // 当前文件夹路径
+        let currentFilename = '';  // 当前图片文件名
+        
+        // 保存当前图片的图名图号（同时保存到后端持久化）
+        async function saveCurrentImageData() {
+            if (currentFilename && currentFolderPath) {
+                const name = document.getElementById('inputImageName').value;
+                const number = document.getElementById('inputImageNumber').value;
+                imageDataStore[currentFilename] = { name, number };
+                // 异步保存到后端
+                try {
+                    await pywebview.api.save_image_data(currentFolderPath, currentFilename, name, number);
+                } catch (e) {
+                    console.error('保存数据失败:', e);
+                }
+            }
+        }
+        
+        // 加载图片对应的图名图号
+        function loadImageData(filename) {
+            currentFilename = filename;
+            const data = imageDataStore[filename];
+            if (data) {
+                document.getElementById('inputImageName').value = data.name || '';
+                document.getElementById('inputImageNumber').value = data.number || '';
+            } else {
+                document.getElementById('inputImageName').value = '';
+                document.getElementById('inputImageNumber').value = '';
+            }
+        }
+        
+        // 从后端加载文件夹的所有图片数据
+        async function loadFolderData(folderPath) {
+            currentFolderPath = folderPath;
+            try {
+                const result = await pywebview.api.load_folder_data(folderPath);
+                if (result.success && result.data) {
+                    imageDataStore = result.data;
+                } else {
+                    imageDataStore = {};
+                }
+            } catch (e) {
+                console.error('加载数据失败:', e);
+                imageDataStore = {};
+            }
+        }
+        
+        // 初始化pywebview
+        window.addEventListener('pywebviewready', function() {
+            console.log('pywebview ready');
+            apiReady = true;
+        });
+        
+        // 检查API是否可用
+        function checkApi() {
+            if (!apiReady || typeof pywebview === 'undefined' || !pywebview.api) {
+                showToast('程序正在初始化，请稍候...', 'error');
+                return false;
+            }
+            return true;
+        }
+        
+        // 打开单个文件
+        async function openFile() {
+            if (!checkApi()) return;
+            try {
+                const result = await pywebview.api.open_file();
+                if (result.success && result.folderPath) {
+                    await loadFolderData(result.folderPath);
+                }
+                handleImageResult(result);
+            } catch (e) {
+                showToast('打开文件失败: ' + e.message, 'error');
+            }
+        }
+        
+        // 打开文件夹
+        async function openFolder() {
+            if (!checkApi()) return;
+            try {
+                const result = await pywebview.api.open_folder();
+                if (result.success && result.folderPath) {
+                    await loadFolderData(result.folderPath);
+                }
+                handleImageResult(result);
+            } catch (e) {
+                showToast('打开文件夹失败: ' + e.message, 'error');
+            }
+        }
+        
+        // 清空当前文件夹的历史数据
+        async function clearFolderHistory() {
+            if (!checkApi()) return;
+            if (!currentFolderPath) {
+                showToast('请先打开一个文件夹', 'error');
+                return;
+            }
+            try {
+                const result = await pywebview.api.clear_folder_data(currentFolderPath);
+                if (result.success) {
+                    // 清空内存中的数据
+                    imageDataStore = {};
+                    // 清空当前输入框
+                    document.getElementById('inputImageName').value = '';
+                    document.getElementById('inputImageNumber').value = '';
+                    showToast('历史数据已清空', 'success');
+                } else {
+                    showToast(result.message, 'error');
+                }
+            } catch (e) {
+                showToast('清空失败: ' + e.message, 'error');
+            }
+        }
+        
+        // 处理图片结果
+        function handleImageResult(result) {
+            if (result.success) {
+                displayImage(result);
+                updatePageIndicator(result.index + 1, result.total);
+                showToast('图片加载成功', 'success');
+            } else {
+                showToast(result.message, 'error');
+            }
+        }
+        
+        // 显示图片
+        function displayImage(data) {
+            mainImage.src = data.image;
+            mainImage.onload = function() {
+                placeholder.style.display = 'none';
+                imageWrapper.style.display = 'block';
+                imageInfo.style.display = 'flex';
+                imageActions.style.display = 'flex';
+                hasImage = true;
+                
+                imageNaturalWidth = data.width;
+                imageNaturalHeight = data.height;
+                
+                // 更新信息
+                document.getElementById('infoFilename').textContent = data.filename;
+                document.getElementById('infoSize').textContent = `${data.width} × ${data.height}`;
+                
+                // 加载该图片对应的图名图号（使用文件名作为键）
+                loadImageData(data.filename);
+                
+                // 自动放大到右下角（100%）
+                focusBottomRight();
+            };
+        }
+        
+        // 重置视图
+        function resetView() {
+            const containerRect = imageContainer.getBoundingClientRect();
+            const containerWidth = containerRect.width;
+            const containerHeight = containerRect.height;
+            
+            // 计算适合容器的缩放比例
+            const scaleX = containerWidth / imageNaturalWidth;
+            const scaleY = containerHeight / imageNaturalHeight;
+            currentZoom = Math.min(scaleX, scaleY, 1) * 0.9;
+            
+            // 居中图片
+            panX = (containerWidth - imageNaturalWidth * currentZoom) / 2;
+            panY = (containerHeight - imageNaturalHeight * currentZoom) / 2;
+            
+            updateImageTransform();
+        }
+        
+        // 更新图片变换
+        function updateImageTransform() {
+            mainImage.style.width = imageNaturalWidth * currentZoom + 'px';
+            mainImage.style.height = imageNaturalHeight * currentZoom + 'px';
+            imageWrapper.style.left = panX + 'px';
+            imageWrapper.style.top = panY + 'px';
+            zoomIndicator.textContent = Math.round(currentZoom * 100) + '%';
+        }
+        
+        // 更新页码指示器
+        function updatePageIndicator(current, total) {
+            document.getElementById('pageInput').value = current;
+            document.getElementById('pageInput').max = total;
+            document.getElementById('totalPages').textContent = total;
+        }
+        
+        // 跳转到指定页
+        async function gotoPage() {
+            if (!checkApi() || !hasImage) return;
+            const pageNum = parseInt(document.getElementById('pageInput').value);
+            if (isNaN(pageNum)) {
+                showToast('请输入有效的页码', 'error');
+                return;
+            }
+            // 保存当前图片的图名图号
+            saveCurrentImageData();
+            try {
+                const result = await pywebview.api.goto_image(pageNum);
+                if (result.success) {
+                    displayImage(result);
+                    updatePageIndicator(result.index + 1, result.total);
+                } else {
+                    showToast(result.message, 'error');
+                }
+            } catch (e) {
+                showToast('跳转失败: ' + e.message, 'error');
+            }
+        }
+        
+        // 处理页码输入回车事件
+        function handlePageInput(event) {
+            if (event.key === 'Enter') {
+                gotoPage();
+            }
+        }
+        
+        // 上一张
+        async function prevImage() {
+            if (!checkApi() || !hasImage) return;
+            // 保存当前图片的图名图号
+            saveCurrentImageData();
+            try {
+                const result = await pywebview.api.prev_image();
+                handleImageResult(result);
+            } catch (e) {
+                showToast('切换失败: ' + e.message, 'error');
+            }
+        }
+        
+        // 下一张
+        async function nextImage() {
+            if (!checkApi() || !hasImage) return;
+            // 保存当前图片的图名图号
+            saveCurrentImageData();
+            try {
+                const result = await pywebview.api.next_image();
+                handleImageResult(result);
+            } catch (e) {
+                showToast('切换失败: ' + e.message, 'error');
+            }
+        }
+        
+        // 左旋转
+        async function rotateLeft() {
+            if (!checkApi() || !hasImage) return;
+            try {
+                const result = await pywebview.api.rotate_left();
+                handleImageResult(result);
+            } catch (e) {
+                showToast('旋转失败: ' + e.message, 'error');
+            }
+        }
+        
+        // 右旋转
+        async function rotateRight() {
+            if (!checkApi() || !hasImage) return;
+            try {
+                const result = await pywebview.api.rotate_right();
+                handleImageResult(result);
+            } catch (e) {
+                showToast('旋转失败: ' + e.message, 'error');
+            }
+        }
+        
+        // 聚焦到右下角（100%放大率）
+        function focusBottomRight() {
+            if (!hasImage) return;
+            
+            const containerRect = imageContainer.getBoundingClientRect();
+            currentZoom = 1; // 放大到100%
+            
+            // 计算右下角位置
+            const imgWidth = imageNaturalWidth * currentZoom;
+            const imgHeight = imageNaturalHeight * currentZoom;
+            
+            panX = containerRect.width - imgWidth;
+            panY = containerRect.height - imgHeight;
+            
+            updateImageTransform();
+        }
+        
+        // 展示全图
+        function showFullImage() {
+            if (!hasImage) return;
+            resetView();
+        }
+        
+        // 放大到右下角（120%）
+        function zoomToBottomRight() {
+            if (!hasImage) return;
+            
+            const containerRect = imageContainer.getBoundingClientRect();
+            currentZoom = 1.2; // 放大到120%
+            
+            // 计算右下角位置
+            const imgWidth = imageNaturalWidth * currentZoom;
+            const imgHeight = imageNaturalHeight * currentZoom;
+            
+            panX = containerRect.width - imgWidth;
+            panY = containerRect.height - imgHeight;
+            
+            updateImageTransform();
+        }
+        
+        // 鼠标滚轮缩放
+        imageContainer.addEventListener('wheel', function(e) {
+            if (!hasImage || selectionMode) return;
+            e.preventDefault();
+            
+            const rect = imageContainer.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            // 计算鼠标相对于图片的位置
+            const imgMouseX = (mouseX - panX) / currentZoom;
+            const imgMouseY = (mouseY - panY) / currentZoom;
+            
+            // 缩放
+            const delta = e.deltaY > 0 ? 0.9 : 1.1;
+            const newZoom = Math.max(0.1, Math.min(10, currentZoom * delta));
+            
+            // 调整平移以保持鼠标位置不变
+            panX = mouseX - imgMouseX * newZoom;
+            panY = mouseY - imgMouseY * newZoom;
+            currentZoom = newZoom;
+            
+            updateImageTransform();
+        });
+        
+        // 拖动图片
+        imageWrapper.addEventListener('mousedown', function(e) {
+            if (selectionMode) return;
+            isDragging = true;
+            dragStartX = e.clientX;
+            dragStartY = e.clientY;
+            initialPanX = panX;
+            initialPanY = panY;
+            imageWrapper.style.cursor = 'grabbing';
+        });
+        
+        document.addEventListener('mousemove', function(e) {
+            if (!isDragging) return;
+            panX = initialPanX + (e.clientX - dragStartX);
+            panY = initialPanY + (e.clientY - dragStartY);
+            updateImageTransform();
+        });
+        
+        document.addEventListener('mouseup', function() {
+            if (isDragging) {
+                isDragging = false;
+                imageWrapper.style.cursor = 'grab';
+            }
+        });
+        
+        // 开始选择区域
+        function startSelection(mode) {
+            if (!hasImage) {
+                showToast('请先加载图片', 'error');
+                return;
+            }
+            
+            selectionMode = mode;
+            selectionOverlay.classList.add('active');
+            selectionBox.style.display = 'none';
+            
+            // 高亮当前按钮
+            document.getElementById('btnImageName').classList.remove('active');
+            document.getElementById('btnImageNumber').classList.remove('active');
+            if (mode === 'name') {
+                document.getElementById('btnImageName').classList.add('active');
+            } else {
+                document.getElementById('btnImageNumber').classList.add('active');
+            }
+        }
+        
+        // 选择区域事件
+        selectionOverlay.addEventListener('mousedown', function(e) {
+            if (!selectionMode) return;
+            
+            const rect = selectionOverlay.getBoundingClientRect();
+            selectionStartX = e.clientX - rect.left;
+            selectionStartY = e.clientY - rect.top;
+            isSelecting = true;
+            
+            selectionBox.style.display = 'block';
+            selectionBox.style.left = selectionStartX + 'px';
+            selectionBox.style.top = selectionStartY + 'px';
+            selectionBox.style.width = '0';
+            selectionBox.style.height = '0';
+        });
+        
+        selectionOverlay.addEventListener('mousemove', function(e) {
+            if (!isSelecting) return;
+            
+            const rect = selectionOverlay.getBoundingClientRect();
+            const currentX = e.clientX - rect.left;
+            const currentY = e.clientY - rect.top;
+            
+            const left = Math.min(selectionStartX, currentX);
+            const top = Math.min(selectionStartY, currentY);
+            const width = Math.abs(currentX - selectionStartX);
+            const height = Math.abs(currentY - selectionStartY);
+            
+            selectionBox.style.left = left + 'px';
+            selectionBox.style.top = top + 'px';
+            selectionBox.style.width = width + 'px';
+            selectionBox.style.height = height + 'px';
+        });
+        
+        selectionOverlay.addEventListener('mouseup', async function(e) {
+            if (!isSelecting) return;
+            isSelecting = false;
+            
+            const rect = selectionOverlay.getBoundingClientRect();
+            const endX = e.clientX - rect.left;
+            const endY = e.clientY - rect.top;
+            
+            const left = Math.min(selectionStartX, endX);
+            const top = Math.min(selectionStartY, endY);
+            const width = Math.abs(endX - selectionStartX);
+            const height = Math.abs(endY - selectionStartY);
+            
+            // 最小选择区域检查
+            if (width < 10 || height < 10) {
+                cancelSelection();
+                showToast('选择区域太小', 'error');
+                return;
+            }
+            
+            // 计算相对于图片的坐标
+            const imgLeft = left - panX;
+            const imgTop = top - panY;
+            const imgWidth = imageNaturalWidth * currentZoom;
+            const imgHeight = imageNaturalHeight * currentZoom;
+            
+            // 裁剪到图片边界内
+            const cropLeft = Math.max(0, imgLeft);
+            const cropTop = Math.max(0, imgTop);
+            const cropRight = Math.min(imgWidth, imgLeft + width);
+            const cropBottom = Math.min(imgHeight, imgTop + height);
+            const cropWidth = cropRight - cropLeft;
+            const cropHeight = cropBottom - cropTop;
+            
+            if (cropWidth <= 0 || cropHeight <= 0) {
+                cancelSelection();
+                showToast('选择区域超出图片范围', 'error');
+                return;
+            }
+            
+            // 执行OCR
+            const mode = selectionMode;
+            cancelSelection();
+            
+            if (!checkApi()) return;
+            
+            showToast('正在识别...', 'success');
+            
+            try {
+                const result = await pywebview.api.crop_and_ocr(
+                    cropLeft, cropTop, cropWidth, cropHeight,
+                    imgWidth, imgHeight
+                );
+                
+                if (result.success) {
+                    if (mode === 'name') {
+                        document.getElementById('inputImageName').value = result.text;
+                    } else {
+                        document.getElementById('inputImageNumber').value = result.text;
+                    }
+                    showToast('识别完成', 'success');
+                } else {
+                    showToast(result.message, 'error');
+                }
+            } catch (e) {
+                showToast('OCR识别失败: ' + e.message, 'error');
+            }
+        });
+        
+        // 取消选择
+        function cancelSelection() {
+            selectionMode = null;
+            isSelecting = false;
+            selectionOverlay.classList.remove('active');
+            selectionBox.style.display = 'none';
+            document.getElementById('btnImageName').classList.remove('active');
+            document.getElementById('btnImageNumber').classList.remove('active');
+        }
+        
+        // ESC键取消选择
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && selectionMode) {
+                cancelSelection();
+            }
+        });
+        
+        // 设置保存路径
+        async function setSavePath() {
+            if (!checkApi()) return;
+            try {
+                const result = await pywebview.api.set_save_path();
+                if (result.success) {
+                    const display = document.getElementById('savePathDisplay');
+                    display.textContent = result.path;
+                    display.classList.remove('empty');
+                    showToast('保存路径设置成功', 'success');
+                }
+            } catch (e) {
+                showToast('设置路径失败: ' + e.message, 'error');
+            }
+        }
+        
+        // 重命名并保存
+        async function renameAndSave() {
+            if (!checkApi()) return;
+            
+            const imageName = document.getElementById('inputImageName').value.trim();
+            const imageNumber = document.getElementById('inputImageNumber').value.trim();
+            
+            if (!imageName && !imageNumber) {
+                showToast('请先识别或输入图名和图号', 'error');
+                return;
+            }
+            
+            try {
+                const result = await pywebview.api.rename_and_save(imageName, imageNumber);
+                if (result.success) {
+                    showToast(result.message, 'success');
+                    
+                    // 保存当前图片的图名图号（用于记录已处理）
+                    saveCurrentImageData();
+                    
+                    if (result.nextImage && result.nextImage.success) {
+                        // 显示下一张图片（displayImage 会自动加载对应的图名图号）
+                        displayImage(result.nextImage);
+                        updatePageIndicator(result.nextImage.index + 1, result.nextImage.total);
+                    }
+                } else {
+                    showToast(result.message, 'error');
+                }
+            } catch (e) {
+                showToast('保存失败: ' + e.message, 'error');
+            }
+        }
+        
+        // 显示提示
+        function showToast(message, type = 'success') {
+            const icon = toast.querySelector('.toast-icon');
+            icon.classList.remove('success', 'error');
+            icon.classList.add(type);
+            toast.classList.remove('success', 'error');
+            toast.classList.add(type);
+            
+            if (type === 'success') {
+                icon.innerHTML = '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>';
+            } else {
+                icon.innerHTML = '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>';
+            }
+            
+            toastMessage.textContent = message;
+            toast.classList.add('show');
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+        
+        // 窗口大小变化时重新计算
+        window.addEventListener('resize', function() {
+            if (hasImage) {
+                // 简单的重新居中
+                const containerRect = imageContainer.getBoundingClientRect();
+                const imgWidth = imageNaturalWidth * currentZoom;
+                const imgHeight = imageNaturalHeight * currentZoom;
+                
+                // 确保图片在视口内
+                if (panX > containerRect.width) panX = containerRect.width - 50;
+                if (panY > containerRect.height) panY = containerRect.height - 50;
+                if (panX + imgWidth < 50) panX = 50 - imgWidth;
+                if (panY + imgHeight < 50) panY = 50 - imgHeight;
+                
+                updateImageTransform();
+            }
+        });
+    </script>
+</body>
+</html>
+
